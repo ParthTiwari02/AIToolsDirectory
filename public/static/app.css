@@ -59,3 +59,48 @@
   color: var(--orange);
   font-weight: 600;
 }
+
+/* AI Tools Directory Styles */
+.section-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #21293c;
+  margin: 0 0 1rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* File uploader styles */
+input[type="file"] {
+  padding: 0.75rem;
+  border: 2px dashed #e5e7eb;
+  border-radius: 8px;
+  width: 100%;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+
+input[type="file"]:hover {
+  border-color: var(--orange);
+}
+
+/* Scrollbar styles */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a1a1a1;
+}

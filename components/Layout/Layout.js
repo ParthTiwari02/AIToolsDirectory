@@ -2,12 +2,26 @@ import Head from "next/head"
 import { Global, css } from "@emotion/core"
 
 import Header from "./Header"
+import SEOHead from "../UI/SEOHead"
 
-const Layout = props => {
+const Layout = ({ 
+  children,
+  title,
+  description,
+  keywords,
+  ogImage,
+  noindex
+}) => {
   return (
     <>
+      <SEOHead 
+        title={title}
+        description={description}
+        keywords={keywords}
+        ogImage={ogImage}
+        noindex={noindex}
+      />
       <Head>
-        <title>Product Hunt - The best new products in tech.</title>
         <link
           rel="stylesheet"
           href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css"
@@ -17,7 +31,7 @@ const Layout = props => {
         <link href="/static/app.css" rel="stylesheet" />
       </Head>
       <Header />
-      <main>{props.children}</main>
+      <main>{children}</main>
     </>
   )
 }

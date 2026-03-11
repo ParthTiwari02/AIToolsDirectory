@@ -33,8 +33,26 @@ const LogoAndSearch = styled.div`
   }
 `
 
-const ProductHuntLogo = styled.picture`
-  height: 40px;
+const LogoContainer = styled.a`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-decoration: none;
+  cursor: pointer;
+`
+
+const LogoIcon = styled.span`
+  font-size: 1.75rem;
+`
+
+const LogoText = styled.span`
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #21293c;
+  
+  @media (max-width: 600px) {
+    display: none;
+  }
 `
 
 const NavContainer = styled.div`
@@ -61,6 +79,34 @@ const UserIconContainer = styled.div`
   }
 `
 
+const RightSection = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+`
+
+const SubmitButton = styled.a`
+  background: linear-gradient(135deg, #ff6154 0%, #ff9a8b 100%);
+  color: white;
+  padding: 0.6rem 1.25rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(255, 97, 84, 0.4);
+  }
+
+  @media (max-width: 600px) {
+    padding: 0.5rem 0.75rem;
+    font-size: 13px;
+  }
+`
+
 const AUTH_PAGES = ["signin", "signup"]
 
 const Header = () => {
@@ -75,28 +121,21 @@ const Header = () => {
       <NavContainer>
         <LogoAndSearch>
           <Link href="/" legacyBehavior>
-            <ProductHuntLogo>
-              <source
-                role="presentation"
-                media="(max-width: 480px)"
-                srcSet="/product-hunt.svg"
-              />
-              <img alt="Product Hunt Logo" src="/product-hunt-full.svg" />
-            </ProductHuntLogo>
+            <LogoContainer>
+              <LogoIcon>🤖</LogoIcon>
+              <LogoText>AI Tools Directory</LogoText>
+            </LogoContainer>
           </Link>
           <Search />
         </LogoAndSearch>
         <Nav />
       </NavContainer>
-      <div
-        css={css`
-          display: flex;
-          align-items: center;
-          justify-content: space-around;
-        `}
-      >
+      <RightSection>
+        <Link href="/posts/new" legacyBehavior>
+          <SubmitButton>Submit Tool</SubmitButton>
+        </Link>
         {user && (
-          <Link href={`/@${user.displayName}`} legacyBehavior>
+          <Link href={`/my/details/edit`} legacyBehavior>
             <UserIconContainer>
               {user.photoURL ? <img src={user.photoURL} /> : <UserIcon />}
             </UserIconContainer>
@@ -112,7 +151,7 @@ const Header = () => {
             <Button>Go back</Button>
           </Link>
         )}
-      </div>
+      </RightSection>
     </HeaderContainer>
   );
 }

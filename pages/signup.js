@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { useRouter } from "next/router"
 import Link from 'next/link'
+import styled from "@emotion/styled"
 import { css } from "@emotion/core"
 
 import Layout from "../components/Layout/Layout"
@@ -15,8 +16,52 @@ const initialState = {
   email: "",
 }
 
+const SuccessBox = styled.div`
+  background-color: #f0fdf4;
+  border: 1px solid #86efac;
+  border-radius: 8px;
+  padding: 1.5rem;
+  text-align: center;
+  margin-top: 2rem;
+`
+
+const SuccessIcon = styled.div`
+  font-size: 3rem;
+  margin-bottom: 1rem;
+`
+
+const SuccessTitle = styled.h2`
+  color: #166534;
+  margin: 0 0 0.5rem 0;
+  font-size: 1.25rem;
+`
+
+const SuccessText = styled.p`
+  color: #15803d;
+  margin: 0 0 1rem 0;
+`
+
+const ResendButton = styled.button`
+  background: none;
+  border: none;
+  color: #166534;
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 14px;
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`
+
 const Signup = () => {
   const [error, setError] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [signupComplete, setSignupComplete] = useState(false)
+  const [signupEmail, setSignupEmail] = useState("")
+  const [resendLoading, setResendLoading] = useState(false)
+  const [resendMessage, setResendMessage] = useState("")
 
   const { values, errors, handleSubmit, handleChange, handleBlur } =
     useValidation(initialState, signupValidation, signUp)
@@ -26,17 +71,69 @@ const Signup = () => {
 
   async function signUp() {
     try {
+      setLoading(true)
+      setError("")
       await firebase.signup(name, email, password)
-      router.push("/")
+      setSignupEmail(email)
+      setSignupComplete(true)
+      // Sign out immediately so user has to verify email first
+      await firebase.signout()
     } catch (error) {
       console.error(error.message)
-      setError("Oops! This one is on us. There was an error when creating your account.")
+      if (error.code === 'auth/email-already-in-use') {
+        setError("This email is already registered. Try signing in instead.")
+      } else if (error.code === 'auth/weak-password') {
+        setError("Password should be at least 6 characters.")
+      } else {
+        setError("Failed to create account. Please try again.")
+      }
+    } finally {
+      setLoading(false)
     }
+  }
+
+  const handleResendEmail = async () => {
+    try {
+      setResendLoading(true)
+      // Sign in temporarily to resend
+      await firebase.auth.signInWithEmailAndPassword(signupEmail, values.password)
+      await firebase.resendVerificationEmail()
+      await firebase.signout()
+      setResendMessage("Verification email sent!")
+    } catch (error) {
+      setResendMessage("Could not resend. Try signing in.")
+    } finally {
+      setResendLoading(false)
+    }
+  }
+
+  if (signupComplete) {
+    return (
+      <Layout title="Verify Your Email">
+        <SuccessBox>
+          <SuccessIcon>📧</SuccessIcon>
+          <SuccessTitle>Check Your Email!</SuccessTitle>
+          <SuccessText>
+            We've sent a verification link to <strong>{signupEmail}</strong>.<br />
+            Please click the link to verify your account.
+          </SuccessText>
+          {resendMessage && <p style={{ color: '#166534', fontSize: '14px' }}>{resendMessage}</p>}
+          <ResendButton onClick={handleResendEmail} disabled={resendLoading}>
+            {resendLoading ? 'Sending...' : "Didn't receive it? Resend email"}
+          </ResendButton>
+          <div style={{ marginTop: '1.5rem' }}>
+            <Link href="/signin" style={{ color: 'var(--orange)', fontWeight: 600 }}>
+              Go to Sign In →
+            </Link>
+          </div>
+        </SuccessBox>
+      </Layout>
+    )
   }
 
   return (
     <div>
-      <Layout>
+      <Layout title="Sign Up">
         <Form onSubmit={handleSubmit} noValidate>
           <h1
             css={css`
@@ -44,52 +141,57 @@ const Signup = () => {
               margin-bottom: 0;
             `}
           >
-            Signup
+            Sign Up
           </h1>
-          <Error>{error}</Error>
+          <p css={css`color: #667190; margin-top: 0.5rem;`}>
+            Create an account to submit and upvote AI tools
+          </p>
+          
+          {error && <Error>{error}</Error>}
+          
           <Field>
             <label htmlFor="name">Name</label>
             <input
               data-error={errors.name !== undefined}
               type="text"
               id="name"
-              placeholder="Aria Evergreen"
+              placeholder="Your name"
               name="name"
               value={name}
               onChange={handleChange}
               onBlur={handleBlur}
             />
-            <Error>{errors.name}</Error>
+            {errors.name && <Error>{errors.name}</Error>}
           </Field>
           <Field>
-            <label htmlFor="name">Email</label>
+            <label htmlFor="email">Email</label>
             <input
               data-error={errors.email !== undefined}
               type="email"
               id="email"
               name="email"
-              placeholder="aria.evergreen@exaple.com"
+              placeholder="you@example.com"
               value={email}
               onChange={handleChange}
               onBlur={handleBlur}
             />
-            <Error>{errors.email}</Error>
+            {errors.email && <Error>{errors.email}</Error>}
           </Field>
           <Field>
-            <label htmlFor="name">Password</label>
+            <label htmlFor="password">Password</label>
             <input
               data-error={errors.password !== undefined}
               type="password"
               id="password"
-              placeholder="Password"
+              placeholder="At least 6 characters"
               name="password"
               value={password}
               onChange={handleChange}
               onBlur={handleBlur}
             />
-            <Error>{errors.password}</Error>
+            {errors.password && <Error>{errors.password}</Error>}
           </Field>
-          <InputSubmit type="submit" value="Signup" />
+          <InputSubmit type="submit" value={loading ? "Creating account..." : "Sign Up"} disabled={loading} />
           <Link
             css={css`
             color: var(--orange);
@@ -97,7 +199,7 @@ const Signup = () => {
             margin-top: 5px;
             `}
             href="/signin">
-            Already have an account? Signin
+            Already have an account? Sign In
           </Link>
         </Form>
       </Layout>

@@ -1,11 +1,10 @@
 import { useContext, useEffect, useRef, useState } from "react"
-import Link from "next/link"
 import { useRouter } from "next/router"
 import styled from "@emotion/styled"
 
 import FirebaseContext from "../../../firebase/context"
 import Layout from "@components/Layout/Layout"
-import UserIcon from "@components/UI/UserIcon"
+import firebase from "../../../firebase/index"
 
 const Container = styled.article`
   padding: 2rem 3rem;
@@ -20,6 +19,7 @@ const Container = styled.article`
 const HeadingContainer = styled.div`
   display: flex;
   justify-content: space-between;
+  align-items: center;
 `
 
 const H1 = styled.h1`
@@ -32,14 +32,22 @@ const H1 = styled.h1`
   font-weight: 600;
 `
 
-const ViewProfileLink = styled.a`
+const LogoutButton = styled.button`
   background-color: transparent;
-  text-decoration: none;
-  color: #21293c;
-  font-size: 16px;
-  font-weight: 400;
-  line-height: 32px;
+  border: 1px solid #e5e7eb;
+  color: #667190;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 8px 16px;
+  border-radius: 6px;
   cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    border-color: #ef4444;
+    color: #ef4444;
+    background-color: #fef2f2;
+  }
 `
 
 const ImageUploadContainer = styled.div`
@@ -166,22 +174,53 @@ const Submit = styled.button`
   border-radius: 4px;
   color: #fff;
   width: max-content;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+`
+
+const ErrorMessage = styled.p`
+  color: #dc2626;
+  font-size: 13px;
+  margin: 4px 0 0 0;
+`
+
+const SuccessMessage = styled.div`
+  background-color: #f0fdf4;
+  border: 1px solid #86efac;
+  border-radius: 8px;
+  padding: 12px 16px;
+  color: #166534;
+  font-size: 14px;
+  margin-bottom: 1rem;
+`
+
+const InputHelper = styled.p`
+  color: #667190;
+  font-size: 12px;
+  margin: 4px 0 0 0;
 `
 
 export default function Edit() {
-  const { user, firebase } = useContext(FirebaseContext)
+  const { user } = useContext(FirebaseContext)
+  const router = useRouter()
 
   const [formValues, setFormValues] = useState({
     name: "",
     username: "",
   })
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState("")
+  const [success, setSuccess] = useState("")
 
   useEffect(() => {
     if (user) {
       setFormValues(prev => ({
         ...prev,
-        name: user.displayName,
-        username: user.displayName,
+        name: user.displayName || "",
+        username: user.displayName?.toLowerCase().replace(/\s+/g, '') || "",
       }))
     }
   }, [user])
@@ -218,29 +257,116 @@ export default function Edit() {
     }
   }
 
-  function handleFormSubmit(event) {
+  // Check if username is taken by another user
+  async function isUsernameTaken(username) {
+    const snapshot = await firebase.db
+      .collection("users")
+      .where("username", "==", username.toLowerCase())
+      .get()
+    
+    // Check if any returned user is different from current user
+    let taken = false
+    snapshot.forEach(doc => {
+      if (doc.id !== user.uid) {
+        taken = true
+      }
+    })
+    return taken
+  }
+
+  async function handleFormSubmit(event) {
     event.preventDefault()
-    console.log(event.target)
+    setError("")
+    setSuccess("")
+
+    const { name, username } = formValues
+
+    // Validate
+    if (!name.trim()) {
+      setError("Name is required")
+      return
+    }
+
+    if (!username.trim()) {
+      setError("Username is required")
+      return
+    }
+
+    // Username format check (alphanumeric and underscores only)
+    if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+      setError("Username can only contain letters, numbers, and underscores")
+      return
+    }
+
+    if (username.length < 3) {
+      setError("Username must be at least 3 characters")
+      return
+    }
+
+    setSaving(true)
+
+    try {
+      // Check if username is taken
+      const taken = await isUsernameTaken(username)
+      if (taken) {
+        setError("This username is already taken. Please choose another.")
+        setSaving(false)
+        return
+      }
+
+      // Update Firebase Auth profile
+      await user.updateProfile({
+        displayName: name,
+      })
+
+      // Save/update user document in Firestore
+      await firebase.db.collection("users").doc(user.uid).set({
+        username: username.toLowerCase(),
+        displayName: name,
+        email: user.email,
+        updatedAt: Date.now(),
+      }, { merge: true })
+
+      setSuccess("Profile saved successfully!")
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccess(""), 3000)
+    } catch (err) {
+      console.error(err)
+      setError("Failed to save profile. Please try again.")
+    } finally {
+      setSaving(false)
+    }
   }
 
   function handleInputChange(event) {
     const { name, value } = event.target
     setFormValues(prev => ({
       ...prev,
-      [name]: value,
+      [name]: name === "username" ? value.toLowerCase().replace(/\s+/g, '') : value,
     }))
   }
 
+  async function handleLogout() {
+    try {
+      await firebase.signout()
+      router.push("/")
+    } catch (error) {
+      console.error("Logout error:", error)
+    }
+  }
+
   return (
-    <Layout>
+    <Layout title="My Details">
       <Container>
         <MainUserInfo>
           <HeadingContainer>
             <H1>My details</H1>
-            <Link href={`/@${user?.displayName}`} legacyBehavior>
-              <ViewProfileLink>View my profile</ViewProfileLink>
-            </Link>
+            <LogoutButton onClick={handleLogout}>Sign out</LogoutButton>
           </HeadingContainer>
+          
+          {success && <SuccessMessage>✓ {success}</SuccessMessage>}
+          
           <ImageUploadContainer>
             <ImagePreviewContainer>
               <img
@@ -277,6 +403,7 @@ export default function Edit() {
                 name="name"
                 value={formValues.name}
                 onChange={handleInputChange}
+                placeholder="Your display name"
               />
             </InputContainer>
             <InputContainer>
@@ -287,9 +414,14 @@ export default function Edit() {
                 name="username"
                 value={formValues.username}
                 onChange={handleInputChange}
+                placeholder="yourname"
               />
+              <InputHelper>Username must be unique. Letters, numbers, and underscores only.</InputHelper>
+              {error && <ErrorMessage>{error}</ErrorMessage>}
             </InputContainer>
-            <Submit type="submit">Save</Submit>
+            <Submit type="submit" disabled={saving}>
+              {saving ? "Saving..." : "Save"}
+            </Submit>
           </Form>
         </MainUserInfo>
       </Container>

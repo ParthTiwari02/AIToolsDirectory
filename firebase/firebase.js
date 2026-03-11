@@ -13,26 +13,58 @@ class Firebase {
     this.auth = app.auth()
     this.db = app.firestore()
     this.storage = app.storage()
+    
+    // Google Auth Provider
+    this.googleProvider = new app.auth.GoogleAuthProvider()
   }
 
-  //Registro de usuario
+  // Sign up with email/password
   async signup(name, email, password) {
     const newUser = await this.auth.createUserWithEmailAndPassword(
       email,
       password
     )
 
-    return await newUser.user.updateProfile({
+    await newUser.user.updateProfile({
       displayName: name,
     })
+
+    // Send email verification
+    await newUser.user.sendEmailVerification()
+    
+    return newUser.user
   }
 
-  //Inicio de sesion
+  // Resend verification email
+  async resendVerificationEmail() {
+    const user = this.auth.currentUser
+    if (user && !user.emailVerified) {
+      await user.sendEmailVerification()
+      return true
+    }
+    return false
+  }
+
+  // Sign in with email/password
   async login(email, password) {
-    return this.auth.signInWithEmailAndPassword(email, password)
+    const result = await this.auth.signInWithEmailAndPassword(email, password)
+    
+    // Check if email is verified (bypass in development for easier testing)
+    const isDev = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+    if (!result.user.emailVerified && !isDev) {
+      throw { code: 'auth/email-not-verified', message: 'Please verify your email before signing in.' }
+    }
+    
+    return result
   }
 
-  //Cerrar sesion
+  // Sign in with Google
+  async loginWithGoogle() {
+    const result = await this.auth.signInWithPopup(this.googleProvider)
+    return result.user
+  }
+
+  // Sign out
   async signout() {
     await this.auth.signOut()
   }
