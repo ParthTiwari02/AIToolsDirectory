@@ -107,21 +107,59 @@ const CategoryName = styled.span`
 
 const Nav = () => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+  const [isExploreOpen, setIsExploreOpen] = useState(false)
 
   return (
     <Navigation>
       <Link href="/" legacyBehavior>
         <NavLink>Home</NavLink>
       </Link>
-      <Link href="/trending" legacyBehavior>
-        <NavLink>Trending</NavLink>
-      </Link>
-      <Link href="/winners" legacyBehavior>
-        <NavLink>Winners</NavLink>
-      </Link>
-      <Link href="/pricing" legacyBehavior>
-        <NavLink>Pricing</NavLink>
-      </Link>
+      <DropdownContainer 
+        onMouseEnter={() => setIsExploreOpen(true)}
+        onMouseLeave={() => setIsExploreOpen(false)}
+      >
+        <DropdownTrigger isOpen={isExploreOpen}>
+          Explore
+        </DropdownTrigger>
+        <DropdownMenu isOpen={isExploreOpen}>
+          <Link href="/discover" passHref legacyBehavior>
+            <DropdownItem>
+              <CategoryIcon>🔥</CategoryIcon>
+              <CategoryName>Discover</CategoryName>
+            </DropdownItem>
+          </Link>
+          <Link href="/leaderboard" passHref legacyBehavior>
+            <DropdownItem>
+              <CategoryIcon>🏆</CategoryIcon>
+              <CategoryName>Leaderboard</CategoryName>
+            </DropdownItem>
+          </Link>
+          <Link href="/collections" passHref legacyBehavior>
+            <DropdownItem>
+              <CategoryIcon>📚</CategoryIcon>
+              <CategoryName>Collections</CategoryName>
+            </DropdownItem>
+          </Link>
+          <Link href="/weekly-best" passHref legacyBehavior>
+            <DropdownItem>
+              <CategoryIcon>📰</CategoryIcon>
+              <CategoryName>Weekly Best</CategoryName>
+            </DropdownItem>
+          </Link>
+          <Link href="/trending" passHref legacyBehavior>
+            <DropdownItem>
+              <CategoryIcon>📈</CategoryIcon>
+              <CategoryName>Trending</CategoryName>
+            </DropdownItem>
+          </Link>
+          <Link href="/winners" passHref legacyBehavior>
+            <DropdownItem>
+              <CategoryIcon>🥇</CategoryIcon>
+              <CategoryName>Winners</CategoryName>
+            </DropdownItem>
+          </Link>
+        </DropdownMenu>
+      </DropdownContainer>
       <DropdownContainer 
         onMouseEnter={() => setIsDropdownOpen(true)}
         onMouseLeave={() => setIsDropdownOpen(false)}

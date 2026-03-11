@@ -162,15 +162,26 @@ const UpvoteButton = styled.div`
   border-radius: 8px;
   min-width: 60px;
   transition: all 0.2s ease;
+  position: relative;
 
   ${props => props.upvoted && `
     background-color: #fff5f4;
     border-color: var(--orange);
   `}
 
+  ${props => props.animating && `
+    animation: bounce 0.4s ease;
+  `}
+
   &:hover {
     border-color: var(--orange);
     background-color: #fff5f4;
+    transform: scale(1.05);
+  }
+
+  @keyframes bounce {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.2); }
   }
 
   @media (max-width: 480px) {
@@ -188,7 +199,16 @@ const UpvoteIcon = styled.div`
   border-right: 8px solid transparent;
   border-bottom: 10px solid ${props => props.upvoted ? "var(--orange)" : "#667190"};
   margin-bottom: 4px;
-  transition: border-color 0.2s ease;
+  transition: all 0.2s ease;
+
+  ${props => props.animating && `
+    animation: pulse 0.4s ease;
+  `}
+
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.3) translateY(-2px); }
+  }
 `
 
 const UpvoteCount = styled.span`
@@ -196,6 +216,21 @@ const UpvoteCount = styled.span`
   font-weight: 600;
   color: ${props => props.upvoted ? "var(--orange)" : "#21293c"};
   transition: color 0.2s ease;
+`
+
+const CelebrationDot = styled.span`
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  background: var(--orange);
+  border-radius: 50%;
+  animation: celebrate 0.5s ease forwards;
+  opacity: 0;
+
+  @keyframes celebrate {
+    0% { transform: scale(0); opacity: 1; }
+    100% { transform: scale(2) translate(var(--tx), var(--ty)); opacity: 0; }
+  }
 `
 
 const UpvoteWrapper = styled.div`
@@ -252,6 +287,8 @@ export default function AIToolCard({ tool, showCategory = true }) {
   const [logoLoading, setLogoLoading] = useState(true)
   const [voteLoading, setVoteLoading] = useState(false)
   const [voteError, setVoteError] = useState("")
+  const [animating, setAnimating] = useState(false)
+  const [showCelebration, setShowCelebration] = useState(false)
 
   const router = useRouter()
   const { user, firebase } = useContext(FirebaseContext)
@@ -297,6 +334,18 @@ export default function AIToolCard({ tool, showCategory = true }) {
       const result = await upvoteTool(id, user.uid)
       setUpvoted(result.voted)
       setCurrentUpvotes(result.upvotes)
+      
+      // Trigger animation
+      if (result.voted) {
+        setAnimating(true)
+        setTimeout(() => setAnimating(false), 400)
+        
+        // Show celebration for milestone votes
+        if (result.upvotes % 10 === 0 || result.upvotes === 50 || result.upvotes === 100) {
+          setShowCelebration(true)
+          setTimeout(() => setShowCelebration(false), 500)
+        }
+      }
     } catch (error) {
       setVoteError(error.message)
       // Show error briefly then clear
@@ -362,8 +411,16 @@ export default function AIToolCard({ tool, showCategory = true }) {
         </ToolDescription>
         <UpvoteWrapper>
           {voteError && <VoteErrorTooltip>{voteError}</VoteErrorTooltip>}
-          <UpvoteButton onClick={handleUpvote} upvoted={upvoted} style={voteLoading ? { opacity: 0.6 } : {}}>
-            <UpvoteIcon upvoted={upvoted} />
+          <UpvoteButton onClick={handleUpvote} upvoted={upvoted} animating={animating} style={voteLoading ? { opacity: 0.6 } : {}}>
+            {showCelebration && (
+              <>
+                <CelebrationDot style={{ '--tx': '-15px', '--ty': '-15px', top: '50%', left: '50%' }} />
+                <CelebrationDot style={{ '--tx': '15px', '--ty': '-15px', top: '50%', left: '50%' }} />
+                <CelebrationDot style={{ '--tx': '-15px', '--ty': '15px', top: '50%', left: '50%' }} />
+                <CelebrationDot style={{ '--tx': '15px', '--ty': '15px', top: '50%', left: '50%' }} />
+              </>
+            )}
+            <UpvoteIcon upvoted={upvoted} animating={animating} />
             <UpvoteCount upvoted={upvoted}>{currentUpvotes}</UpvoteCount>
           </UpvoteButton>
         </UpvoteWrapper>

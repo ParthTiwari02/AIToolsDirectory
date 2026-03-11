@@ -107,6 +107,39 @@ const SubmitButton = styled.a`
   }
 `
 
+const NotificationBell = styled.a`
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #f3f4f6;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: #e5e7eb;
+  }
+
+  span {
+    font-size: 1.25rem;
+  }
+`
+
+const UnreadDot = styled.div`
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 10px;
+  height: 10px;
+  background: #ff6154;
+  border-radius: 50%;
+  border: 2px solid white;
+`
+
 const AUTH_PAGES = ["signin", "signup"]
 
 const Header = () => {
@@ -135,11 +168,18 @@ const Header = () => {
           <SubmitButton>Submit Tool</SubmitButton>
         </Link>
         {user && (
-          <Link href={`/my/details/edit`} legacyBehavior>
-            <UserIconContainer>
-              {user.photoURL ? <img src={user.photoURL} /> : <UserIcon />}
-            </UserIconContainer>
-          </Link>
+          <>
+            <Link href="/notifications" legacyBehavior>
+              <NotificationBell>
+                <span>🔔</span>
+              </NotificationBell>
+            </Link>
+            <Link href={`/my/details/edit`} legacyBehavior>
+              <UserIconContainer>
+                {user.photoURL ? <img src={user.photoURL} /> : <UserIcon />}
+              </UserIconContainer>
+            </Link>
+          </>
         )}
         {!user && !AUTH_PAGES.includes(parsedPathname) && (
           <Link href="/signin" legacyBehavior>

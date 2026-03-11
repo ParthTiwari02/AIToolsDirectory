@@ -300,6 +300,161 @@ const HomeLink = styled.a`
   cursor: pointer;
 `
 
+// Share Buttons
+const ShareSection = styled.div`
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+`
+
+const ShareButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1rem;
+  background: ${props => props.bg || '#f3f4f6'};
+  color: ${props => props.color || '#4b587c'};
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  }
+`
+
+const CopySuccess = styled.span`
+  color: #10b981;
+  font-size: 13px;
+  margin-left: 0.5rem;
+`
+
+// Comments Section
+const CommentsSection = styled.section`
+  margin-top: 2.5rem;
+  padding-top: 2rem;
+  border-top: 1px solid #e5e7eb;
+`
+
+const CommentForm = styled.form`
+  margin-bottom: 2rem;
+`
+
+const CommentInput = styled.textarea`
+  width: 100%;
+  padding: 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 100px;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+
+  &:focus {
+    outline: none;
+    border-color: #ff6154;
+  }
+
+  &::placeholder {
+    color: #9ca3af;
+  }
+`
+
+const CommentSubmitRow = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.75rem;
+`
+
+const CommentSubmitButton = styled.button`
+  padding: 0.75rem 1.5rem;
+  background: linear-gradient(135deg, #ff6154 0%, #ff9a8b 100%);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+`
+
+const CommentList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+`
+
+const CommentItem = styled.div`
+  padding: 1rem;
+  background: #f9fafb;
+  border-radius: 8px;
+`
+
+const CommentHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+`
+
+const CommentAuthor = styled.span`
+  font-weight: 600;
+  color: #21293c;
+  font-size: 0.9rem;
+`
+
+const CommentTime = styled.span`
+  color: #9ca3af;
+  font-size: 0.8rem;
+`
+
+const CommentText = styled.p`
+  margin: 0;
+  color: #4b587c;
+  font-size: 0.95rem;
+  line-height: 1.5;
+`
+
+const NoComments = styled.p`
+  text-align: center;
+  color: #9ca3af;
+  padding: 2rem;
+  background: #f9fafb;
+  border-radius: 8px;
+`
+
+const LoginPrompt = styled.p`
+  text-align: center;
+  color: #667190;
+  padding: 1.5rem;
+  background: #f9fafb;
+  border-radius: 8px;
+
+  a {
+    color: #ff6154;
+    text-decoration: none;
+    font-weight: 500;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+`
+
 export default function ToolPage() {
   const router = useRouter()
   const { slug } = router.query
@@ -312,6 +467,10 @@ export default function ToolPage() {
   const [upvoted, setUpvoted] = useState(false)
   const [currentUpvotes, setCurrentUpvotes] = useState(0)
   const [logoError, setLogoError] = useState(false)
+  const [comments, setComments] = useState([])
+  const [newComment, setNewComment] = useState("")
+  const [commentLoading, setCommentLoading] = useState(false)
+  const [copySuccess, setCopySuccess] = useState(false)
 
   useEffect(() => {
     if (!slug || !firebase) return
@@ -397,6 +556,69 @@ export default function ToolPage() {
       hasVoted: newHasVoted,
     })
   }
+
+  // Share handlers
+  const shareUrl = typeof window !== 'undefined' ? window.location.href : ''
+  const shareText = `Check out ${tool?.name} - ${tool?.tagline} on Launch AI Jam!`
+
+  const shareOnTwitter = () => {
+    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`, '_blank')
+  }
+
+  const shareOnLinkedIn = () => {
+    window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`, '_blank')
+  }
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(shareUrl)
+      setCopySuccess(true)
+      setTimeout(() => setCopySuccess(false), 2000)
+    } catch (err) {
+      console.error('Failed to copy:', err)
+    }
+  }
+
+  // Comment handlers
+  const handleCommentSubmit = async (e) => {
+    e.preventDefault()
+    if (!user || !newComment.trim() || !tool) return
+
+    setCommentLoading(true)
+    try {
+      const comment = {
+        text: newComment.trim(),
+        author: {
+          id: user.uid,
+          name: user.displayName || 'Anonymous',
+          avatar: user.photoURL || '',
+        },
+        created_at: Date.now(),
+      }
+
+      const updatedComments = [...(tool.comments || []), comment]
+      
+      await firebase.db.collection("ai_tools").doc(tool.id).update({
+        comments: updatedComments,
+        comment_count: updatedComments.length,
+      })
+
+      setComments(updatedComments)
+      setTool({ ...tool, comments: updatedComments })
+      setNewComment("")
+    } catch (error) {
+      console.error("Error posting comment:", error)
+    } finally {
+      setCommentLoading(false)
+    }
+  }
+
+  // Load comments when tool loads
+  useEffect(() => {
+    if (tool?.comments) {
+      setComments(tool.comments)
+    }
+  }, [tool?.comments])
 
   const getInitials = (name) => {
     return name
@@ -526,6 +748,66 @@ export default function ToolPage() {
             </TagList>
           </Section>
         )}
+
+        <Section>
+          <SectionTitle>Share</SectionTitle>
+          <ShareSection>
+            <ShareButton bg="#1DA1F2" color="white" onClick={shareOnTwitter}>
+              𝕏 Share on Twitter
+            </ShareButton>
+            <ShareButton bg="#0077B5" color="white" onClick={shareOnLinkedIn}>
+              in Share on LinkedIn
+            </ShareButton>
+            <ShareButton onClick={copyLink}>
+              🔗 Copy Link
+              {copySuccess && <CopySuccess>✓ Copied!</CopySuccess>}
+            </ShareButton>
+          </ShareSection>
+        </Section>
+
+        <CommentsSection>
+          <SectionTitle>💬 Discussion ({comments.length})</SectionTitle>
+          
+          {user ? (
+            <CommentForm onSubmit={handleCommentSubmit}>
+              <CommentInput
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                placeholder="Share your thoughts about this tool..."
+                maxLength={1000}
+              />
+              <CommentSubmitRow>
+                <CommentSubmitButton type="submit" disabled={commentLoading || !newComment.trim()}>
+                  {commentLoading ? "Posting..." : "Post Comment"}
+                </CommentSubmitButton>
+              </CommentSubmitRow>
+            </CommentForm>
+          ) : (
+            <LoginPrompt>
+              <Link href="/signin">Sign in</Link> to join the discussion
+            </LoginPrompt>
+          )}
+
+          {comments.length > 0 ? (
+            <CommentList>
+              {comments.slice().reverse().map((comment, index) => (
+                <CommentItem key={index}>
+                  <CommentHeader>
+                    <CommentAuthor>{comment.author?.name || 'Anonymous'}</CommentAuthor>
+                    {comment.created_at && (
+                      <CommentTime>
+                        {formatTimeToNow(new Date(comment.created_at), { locale: enUS })} ago
+                      </CommentTime>
+                    )}
+                  </CommentHeader>
+                  <CommentText>{comment.text}</CommentText>
+                </CommentItem>
+              ))}
+            </CommentList>
+          ) : (
+            <NoComments>No comments yet. Be the first to share your thoughts!</NoComments>
+          )}
+        </CommentsSection>
 
         {relatedTools.length > 0 && (
           <Section>
