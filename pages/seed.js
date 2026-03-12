@@ -341,36 +341,45 @@ export default function SeedPage() {
   const [loading, setLoading] = useState(false)
   const [logs, setLogs] = useState([])
 
-  const addLog = (message) => {
-    setLogs(prev => [...prev, "[" + new Date().toLocaleTimeString() + "] " + message])
-  }
-
   const seedDatabase = async () => {
     setLoading(true)
     setError(false)
-    setLogs([])
-    addLog("Starting database seed...")
+    setLogs(["[" + new Date().toLocaleTimeString() + "] Starting database seed..."])
 
     try {
+      // Get all existing slugs in one query
       const existingSnapshot = await firebase.db.collection("ai_tools").get()
-      addLog("Found " + existingSnapshot.size + " existing tools")
+      const existingSlugs = new Set()
+      existingSnapshot.forEach(doc => {
+        const data = doc.data()
+        if (data.slug) existingSlugs.add(data.slug)
+      })
+      
+      setLogs(prev => [...prev, "[" + new Date().toLocaleTimeString() + "] Found " + existingSlugs.size + " existing tools"])
 
-      let seededCount = 0
-
-      for (const tool of sampleTools) {
+      // Filter tools that don't exist yet
+      const toolsToAdd = sampleTools.filter(tool => {
         const slug = generateSlug(tool.name)
+        return !existingSlugs.has(slug)
+      })
+
+      if (toolsToAdd.length === 0) {
+        setLogs(prev => [...prev, "[" + new Date().toLocaleTimeString() + "] All tools already exist!"])
+        setStatus("All " + sampleTools.length + " tools already in database!")
+        setLoading(false)
+        return
+      }
+
+      setLogs(prev => [...prev, "[" + new Date().toLocaleTimeString() + "] Adding " + toolsToAdd.length + " new tools..."])
+
+      // Use batch write for speed (max 500 per batch)
+      const batch = firebase.db.batch()
+      
+      toolsToAdd.forEach(tool => {
+        const slug = generateSlug(tool.name)
+        const docRef = firebase.db.collection("ai_tools").doc()
         
-        const existingTool = await firebase.db
-          .collection("ai_tools")
-          .where("slug", "==", slug)
-          .get()
-
-        if (!existingTool.empty) {
-          addLog("Skipping " + tool.name + " (already exists)")
-          continue
-        }
-
-        const toolData = {
+        batch.set(docRef, {
           name: tool.name,
           tagline: tool.tagline,
           description: tool.description,
@@ -386,18 +395,22 @@ export default function SeedPage() {
           comments: [],
           comment_count: 0,
           creator: tool.creator
-        }
+        })
+      })
 
-        await firebase.db.collection("ai_tools").add(toolData)
-        addLog("Added: " + tool.name)
-        seededCount++
-      }
-
-      addLog("Seed complete! Added " + seededCount + " new tools.")
-      setStatus("Successfully seeded " + seededCount + " AI tools!")
+      await batch.commit()
+      
+      const finalLogs = [
+        "[" + new Date().toLocaleTimeString() + "] Starting database seed...",
+        "[" + new Date().toLocaleTimeString() + "] Found " + existingSlugs.size + " existing tools",
+        "[" + new Date().toLocaleTimeString() + "] Added " + toolsToAdd.length + " tools: " + toolsToAdd.map(t => t.name).join(", "),
+        "[" + new Date().toLocaleTimeString() + "] Seed complete!"
+      ]
+      setLogs(finalLogs)
+      setStatus("Successfully seeded " + toolsToAdd.length + " AI tools!")
     } catch (err) {
       console.error("Seed error:", err)
-      addLog("Error: " + err.message)
+      setLogs(prev => [...prev, "[" + new Date().toLocaleTimeString() + "] Error: " + err.message])
       setError(true)
       setStatus("Error: " + err.message)
     } finally {
@@ -412,12 +425,11 @@ export default function SeedPage() {
 
     setLoading(true)
     setError(false)
-    setLogs([])
-    addLog("Clearing database...")
+    setLogs(["[" + new Date().toLocaleTimeString() + "] Clearing database..."])
 
     try {
       const snapshot = await firebase.db.collection("ai_tools").get()
-      addLog("Found " + snapshot.size + " tools to delete")
+      setLogs(prev => [...prev, "[" + new Date().toLocaleTimeString() + "] Found " + snapshot.size + " tools to delete"])
 
       const batch = firebase.db.batch()
       snapshot.docs.forEach(doc => {
@@ -425,11 +437,11 @@ export default function SeedPage() {
       })
 
       await batch.commit()
-      addLog("Deleted " + snapshot.size + " tools")
+      setLogs(prev => [...prev, "[" + new Date().toLocaleTimeString() + "] Deleted " + snapshot.size + " tools"])
       setStatus("Cleared " + snapshot.size + " tools from database")
     } catch (err) {
       console.error("Clear error:", err)
-      addLog("Error: " + err.message)
+      setLogs(prev => [...prev, "[" + new Date().toLocaleTimeString() + "] Error: " + err.message])
       setError(true)
       setStatus("Error: " + err.message)
     } finally {
