@@ -342,6 +342,12 @@ export default function SeedPage() {
   const [logs, setLogs] = useState([])
 
   const seedDatabase = async () => {
+    if (!firebase.db) {
+      setError(true)
+      setStatus("Firebase not initialized. Please refresh the page.")
+      return
+    }
+
     setLoading(true)
     setError(false)
     setLogs(["[" + new Date().toLocaleTimeString() + "] Starting database seed..."])
@@ -419,6 +425,12 @@ export default function SeedPage() {
   }
 
   const clearDatabase = async () => {
+    if (!firebase.db) {
+      setError(true)
+      setStatus("Firebase not initialized. Please refresh the page.")
+      return
+    }
+
     if (!confirm("Are you sure you want to delete ALL tools? This cannot be undone!")) {
       return
     }
@@ -450,6 +462,12 @@ export default function SeedPage() {
   }
 
   const exportBackup = async () => {
+    if (!firebase.db) {
+      setError(true)
+      setStatus("Firebase not initialized. Please refresh the page.")
+      return
+    }
+
     setLoading(true)
     setError(false)
     setLogs(["[" + new Date().toLocaleTimeString() + "] Creating backup..."])
@@ -488,6 +506,12 @@ export default function SeedPage() {
   }
 
   const importBackup = async (event) => {
+    if (!firebase.db) {
+      setError(true)
+      setStatus("Firebase not initialized. Please refresh the page.")
+      return
+    }
+
     const file = event.target.files[0]
     if (!file) return
 

@@ -6,23 +6,33 @@ import "firebase/storage"
 
 class Firebase {
   constructor() {
-    if (!app.apps.length) {
-      app.initializeApp(firebaseConfig)
-    }
+    // Only initialize on client side
+    if (typeof window !== 'undefined') {
+      if (!app.apps.length) {
+        app.initializeApp(firebaseConfig)
+      }
 
-    this.auth = app.auth()
-    this.db = app.firestore()
-    this.storage = app.storage()
-    
-    // Google Auth Provider
-    this.googleProvider = new app.auth.GoogleAuthProvider()
-    this.googleProvider.setCustomParameters({
-      prompt: 'select_account'
-    })
+      this.auth = app.auth()
+      this.db = app.firestore()
+      this.storage = app.storage()
+      
+      // Google Auth Provider
+      this.googleProvider = new app.auth.GoogleAuthProvider()
+      this.googleProvider.setCustomParameters({
+        prompt: 'select_account'
+      })
+    } else {
+      // Server-side: create dummy objects to prevent errors
+      this.auth = null
+      this.db = null
+      this.storage = null
+      this.googleProvider = null
+    }
   }
 
   // Sign up with email/password
   async signup(name, email, password) {
+    if (!this.auth) return null
     try {
       const newUser = await this.auth.createUserWithEmailAndPassword(
         email,
@@ -33,16 +43,6 @@ class Firebase {
         displayName: name,
       })
 
-      // Try to send verification email, but don't fail if it doesn't work
-      try {
-        await newUser.user.sendEmailVerification({
-          url: typeof window !== 'undefined' ? window.location.origin + '/signin' : 'https://launchaijam.com/signin',
-          handleCodeInApp: false
-        })
-      } catch (emailError) {
-        console.warn('Could not send verification email:', emailError)
-      }
-
       return newUser.user
     } catch (error) {
       console.error('Signup error:', error)
@@ -50,41 +50,25 @@ class Firebase {
     }
   }
 
-  // Resend verification email
-  async resendVerificationEmail() {
-    const user = this.auth.currentUser
-    if (user && !user.emailVerified) {
-      await user.sendEmailVerification({
-        url: typeof window !== 'undefined' ? window.location.origin + '/signin' : 'https://launchaijam.com/signin',
-        handleCodeInApp: false
-      })
-      return true
-    }
-    return false
-  }
-
-  // Check if current user's email is verified
-  isEmailVerified() {
-    const user = this.auth.currentUser
-    return user ? user.emailVerified : false
-  }
-
-  // Sign in with email/password - simplified without verification requirement
+  // Sign in with email/password
   async login(email, password) {
+    if (!this.auth) return null
     const result = await this.auth.signInWithEmailAndPassword(email, password)
     return result
   }
 
   // Sign in with Google
   async loginWithGoogle() {
+    if (!this.auth || !this.googleProvider) {
+      throw new Error('Firebase not initialized')
+    }
     try {
-      // Try popup first
       const result = await this.auth.signInWithPopup(this.googleProvider)
       return result.user
     } catch (error) {
-      // If popup blocked, try redirect
+      console.error('Google sign-in error:', error)
+      // If popup blocked or closed, try redirect
       if (error.code === 'auth/popup-blocked' || error.code === 'auth/popup-closed-by-user') {
-        console.log('Popup blocked, trying redirect...')
         await this.auth.signInWithRedirect(this.googleProvider)
         return null
       }
@@ -94,9 +78,10 @@ class Firebase {
 
   // Handle redirect result (call on page load)
   async getRedirectResult() {
+    if (!this.auth) return null
     try {
       const result = await this.auth.getRedirectResult()
-      if (result.user) {
+      if (result && result.user) {
         return result.user
       }
       return null
@@ -108,6 +93,7 @@ class Firebase {
 
   // Sign out
   async signout() {
+    if (!this.auth) return
     await this.auth.signOut()
   }
 }

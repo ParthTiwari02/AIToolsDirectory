@@ -5,6 +5,9 @@ export default function useAuth() {
   const [user, setUser] = useState(null)
 
   useEffect(() => {
+    // Only run on client side where auth is available
+    if (!firebase.auth) return
+
     const unsuscribe = firebase.auth.onAuthStateChanged(user => {
       if (user) {
         setUser(user)
