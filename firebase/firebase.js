@@ -30,8 +30,11 @@ class Firebase {
     })
 
     // Send email verification
-    await newUser.user.sendEmailVerification()
-    
+    await newUser.user.sendEmailVerification({
+      url: typeof window !== 'undefined' ? window.location.origin + '/signin' : 'https://launchaijam.com/signin',
+      handleCodeInApp: false
+    })
+
     return newUser.user
   }
 
@@ -39,26 +42,39 @@ class Firebase {
   async resendVerificationEmail() {
     const user = this.auth.currentUser
     if (user && !user.emailVerified) {
-      await user.sendEmailVerification()
+      await user.sendEmailVerification({
+        url: typeof window !== 'undefined' ? window.location.origin + '/signin' : 'https://launchaijam.com/signin',
+        handleCodeInApp: false
+      })
       return true
     }
     return false
+  }
+
+  // Check if current user's email is verified
+  isEmailVerified() {
+    const user = this.auth.currentUser
+    return user ? user.emailVerified : false
   }
 
   // Sign in with email/password
   async login(email, password) {
     const result = await this.auth.signInWithEmailAndPassword(email, password)
     
-    // Check if email is verified (bypass in development for easier testing)
-    const isDev = typeof window !== 'undefined' && window.location.hostname === 'localhost'
-    if (!result.user.emailVerified && !isDev) {
-      throw { code: 'auth/email-not-verified', message: 'Please verify your email before signing in.' }
+    // Check if email is verified
+    if (!result.user.emailVerified) {
+      // Sign out unverified user
+      await this.auth.signOut()
+      const error = new Error('Please verify your email before signing in. Check your inbox for the verification link.')
+      error.code = 'auth/email-not-verified'
+      error.user = result.user
+      throw error
     }
     
     return result
   }
 
-  // Sign in with Google
+  // Sign in with Google (no verification needed - Google already verified)
   async loginWithGoogle() {
     const result = await this.auth.signInWithPopup(this.googleProvider)
     return result.user
