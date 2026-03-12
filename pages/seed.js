@@ -449,6 +449,105 @@ export default function SeedPage() {
     }
   }
 
+  const exportBackup = async () => {
+    setLoading(true)
+    setError(false)
+    setLogs(["[" + new Date().toLocaleTimeString() + "] Creating backup..."])
+
+    try {
+      const snapshot = await firebase.db.collection("ai_tools").get()
+      const tools = []
+      snapshot.forEach(doc => {
+        tools.push({ id: doc.id, ...doc.data() })
+      })
+
+      setLogs(prev => [...prev, "[" + new Date().toLocaleTimeString() + "] Found " + tools.length + " tools"])
+
+      // Create and download JSON file
+      const dataStr = JSON.stringify(tools, null, 2)
+      const blob = new Blob([dataStr], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = 'ai_tools_backup_' + new Date().toISOString().split('T')[0] + '.json'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+
+      setLogs(prev => [...prev, "[" + new Date().toLocaleTimeString() + "] Backup downloaded!"])
+      setStatus("Exported " + tools.length + " tools to JSON file")
+    } catch (err) {
+      console.error("Export error:", err)
+      setLogs(prev => [...prev, "[" + new Date().toLocaleTimeString() + "] Error: " + err.message])
+      setError(true)
+      setStatus("Error: " + err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const importBackup = async (event) => {
+    const file = event.target.files[0]
+    if (!file) return
+
+    setLoading(true)
+    setError(false)
+    setLogs(["[" + new Date().toLocaleTimeString() + "] Reading backup file..."])
+
+    try {
+      const text = await file.text()
+      const tools = JSON.parse(text)
+
+      if (!Array.isArray(tools)) {
+        throw new Error("Invalid backup file format")
+      }
+
+      setLogs(prev => [...prev, "[" + new Date().toLocaleTimeString() + "] Found " + tools.length + " tools in backup"])
+
+      // Get existing slugs
+      const existingSnapshot = await firebase.db.collection("ai_tools").get()
+      const existingSlugs = new Set()
+      existingSnapshot.forEach(doc => {
+        const data = doc.data()
+        if (data.slug) existingSlugs.add(data.slug)
+      })
+
+      // Filter out existing tools
+      const newTools = tools.filter(tool => !existingSlugs.has(tool.slug))
+      
+      if (newTools.length === 0) {
+        setLogs(prev => [...prev, "[" + new Date().toLocaleTimeString() + "] All tools already exist!"])
+        setStatus("No new tools to import")
+        setLoading(false)
+        return
+      }
+
+      setLogs(prev => [...prev, "[" + new Date().toLocaleTimeString() + "] Importing " + newTools.length + " new tools..."])
+
+      // Batch import
+      const batch = firebase.db.batch()
+      newTools.forEach(tool => {
+        const { id, ...toolData } = tool
+        const docRef = firebase.db.collection("ai_tools").doc()
+        batch.set(docRef, toolData)
+      })
+
+      await batch.commit()
+
+      setLogs(prev => [...prev, "[" + new Date().toLocaleTimeString() + "] Import complete!"])
+      setStatus("Imported " + newTools.length + " tools from backup")
+    } catch (err) {
+      console.error("Import error:", err)
+      setLogs(prev => [...prev, "[" + new Date().toLocaleTimeString() + "] Error: " + err.message])
+      setError(true)
+      setStatus("Error: " + err.message)
+    } finally {
+      setLoading(false)
+      event.target.value = '' // Reset file input
+    }
+  }
+
   return (
     <Layout title="Seed Database">
       <Wrapper>
@@ -460,6 +559,29 @@ export default function SeedPage() {
 
         <Button onClick={seedDatabase} disabled={loading}>
           {loading ? "Seeding..." : "Seed " + sampleTools.length + " AI Tools"}
+        </Button>
+
+        <Button 
+          onClick={exportBackup}
+          disabled={loading}
+          style={{ background: '#3b82f6' }}
+        >
+          {loading ? "Exporting..." : "📥 Export Backup (JSON)"}
+        </Button>
+
+        <Button 
+          as="label"
+          disabled={loading}
+          style={{ background: '#10b981', cursor: loading ? 'not-allowed' : 'pointer' }}
+        >
+          {loading ? "Importing..." : "📤 Import from Backup"}
+          <input
+            type="file"
+            accept=".json"
+            onChange={importBackup}
+            style={{ display: 'none' }}
+            disabled={loading}
+          />
         </Button>
 
         <Button 

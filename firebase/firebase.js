@@ -16,26 +16,38 @@ class Firebase {
     
     // Google Auth Provider
     this.googleProvider = new app.auth.GoogleAuthProvider()
+    this.googleProvider.setCustomParameters({
+      prompt: 'select_account'
+    })
   }
 
   // Sign up with email/password
   async signup(name, email, password) {
-    const newUser = await this.auth.createUserWithEmailAndPassword(
-      email,
-      password
-    )
+    try {
+      const newUser = await this.auth.createUserWithEmailAndPassword(
+        email,
+        password
+      )
 
-    await newUser.user.updateProfile({
-      displayName: name,
-    })
+      await newUser.user.updateProfile({
+        displayName: name,
+      })
 
-    // Send email verification
-    await newUser.user.sendEmailVerification({
-      url: typeof window !== 'undefined' ? window.location.origin + '/signin' : 'https://launchaijam.com/signin',
-      handleCodeInApp: false
-    })
+      // Try to send verification email, but don't fail if it doesn't work
+      try {
+        await newUser.user.sendEmailVerification({
+          url: typeof window !== 'undefined' ? window.location.origin + '/signin' : 'https://launchaijam.com/signin',
+          handleCodeInApp: false
+        })
+      } catch (emailError) {
+        console.warn('Could not send verification email:', emailError)
+      }
 
-    return newUser.user
+      return newUser.user
+    } catch (error) {
+      console.error('Signup error:', error)
+      throw error
+    }
   }
 
   // Resend verification email
@@ -57,27 +69,41 @@ class Firebase {
     return user ? user.emailVerified : false
   }
 
-  // Sign in with email/password
+  // Sign in with email/password - simplified without verification requirement
   async login(email, password) {
     const result = await this.auth.signInWithEmailAndPassword(email, password)
-    
-    // Check if email is verified
-    if (!result.user.emailVerified) {
-      // Sign out unverified user
-      await this.auth.signOut()
-      const error = new Error('Please verify your email before signing in. Check your inbox for the verification link.')
-      error.code = 'auth/email-not-verified'
-      error.user = result.user
-      throw error
-    }
-    
     return result
   }
 
-  // Sign in with Google (no verification needed - Google already verified)
+  // Sign in with Google
   async loginWithGoogle() {
-    const result = await this.auth.signInWithPopup(this.googleProvider)
-    return result.user
+    try {
+      // Try popup first
+      const result = await this.auth.signInWithPopup(this.googleProvider)
+      return result.user
+    } catch (error) {
+      // If popup blocked, try redirect
+      if (error.code === 'auth/popup-blocked' || error.code === 'auth/popup-closed-by-user') {
+        console.log('Popup blocked, trying redirect...')
+        await this.auth.signInWithRedirect(this.googleProvider)
+        return null
+      }
+      throw error
+    }
+  }
+
+  // Handle redirect result (call on page load)
+  async getRedirectResult() {
+    try {
+      const result = await this.auth.getRedirectResult()
+      if (result.user) {
+        return result.user
+      }
+      return null
+    } catch (error) {
+      console.error('Redirect result error:', error)
+      return null
+    }
   }
 
   // Sign out

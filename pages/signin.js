@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Layout from "../components/Layout/Layout"
 import useValidation from "../hooks/useValidation"
 import loginValidation from "../validation/loginValidation"
@@ -13,54 +13,6 @@ const initialState = {
   password: "",
   email: "",
 }
-
-const VerificationBox = styled.div`
-  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-  border: 1px solid #f59e0b;
-  border-radius: 12px;
-  padding: 1.5rem;
-  margin-bottom: 1.5rem;
-  text-align: center;
-`
-
-const VerificationText = styled.p`
-  color: #92400e;
-  margin: 0 0 1rem 0;
-  font-size: 0.95rem;
-  line-height: 1.5;
-`
-
-const ResendButton = styled.button`
-  padding: 0.5rem 1.5rem;
-  background: #f59e0b;
-  color: white;
-  font-weight: 600;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 0.875rem;
-  transition: all 0.2s ease;
-
-  &:hover:not(:disabled) {
-    background: #d97706;
-  }
-
-  &:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-`
-
-const SuccessMessage = styled.div`
-  background: #dcfce7;
-  border: 1px solid #86efac;
-  color: #166534;
-  padding: 0.75rem 1rem;
-  border-radius: 8px;
-  margin-bottom: 1rem;
-  text-align: center;
-  font-size: 0.9rem;
-`
 
 const GoogleButton = styled.button`
   width: 100%;
@@ -79,9 +31,14 @@ const GoogleButton = styled.button`
   gap: 0.5rem;
   transition: all 0.2s ease;
 
-  &:hover {
+  &:hover:not(:disabled) {
     background: #f9fafb;
     border-color: #d1d5db;
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 `
 
@@ -107,10 +64,6 @@ const Divider = styled.div`
 const Login = () => {
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
-  const [needsVerification, setNeedsVerification] = useState(false)
-  const [verificationEmail, setVerificationEmail] = useState("")
-  const [resendLoading, setResendLoading] = useState(false)
-  const [resendSuccess, setResendSuccess] = useState(false)
 
   const { values, errors, handleSubmit, handleChange, handleBlur } =
     useValidation(initialState, loginValidation, logIn)
@@ -119,22 +72,33 @@ const Login = () => {
 
   const router = useRouter()
 
+  // Check for redirect result on page load (for Google sign-in fallback)
+  useEffect(() => {
+    const checkRedirect = async () => {
+      try {
+        const user = await firebase.getRedirectResult()
+        if (user) {
+          router.push("/")
+        }
+      } catch (err) {
+        console.error('Redirect check error:', err)
+      }
+    }
+    checkRedirect()
+  }, [router])
+
   async function logIn() {
     try {
       setLoading(true)
       setError("")
-      setNeedsVerification(false)
-      setResendSuccess(false)
       await firebase.login(email, password)
       router.push("/")
     } catch (error) {
       console.error(error.message)
-      if (error.code === 'auth/email-not-verified') {
-        setNeedsVerification(true)
-        setVerificationEmail(email)
-        setError("")
-      } else if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
         setError("Invalid email or password. Please try again.")
+      } else if (error.code === 'auth/invalid-email') {
+        setError("Please enter a valid email address.")
       } else {
         setError("Failed to sign in. Please try again.")
       }
@@ -147,30 +111,24 @@ const Login = () => {
     try {
       setLoading(true)
       setError("")
-      await firebase.loginWithGoogle()
-      router.push("/")
+      const user = await firebase.loginWithGoogle()
+      if (user) {
+        router.push("/")
+      }
+      // If null, redirect is happening
     } catch (error) {
-      console.error(error.message)
-      setError("Failed to sign in with Google. Please try again.")
+      console.error('Google sign-in error:', error)
+      if (error.code === 'auth/popup-closed-by-user') {
+        setError("Sign-in was cancelled. Please try again.")
+      } else if (error.code === 'auth/unauthorized-domain') {
+        setError("This domain is not authorized. Please contact support.")
+      } else if (error.code === 'auth/operation-not-allowed') {
+        setError("Google sign-in is not enabled. Please use email/password.")
+      } else {
+        setError("Failed to sign in with Google. Please try email/password instead.")
+      }
     } finally {
       setLoading(false)
-    }
-  }
-
-  async function handleResendVerification() {
-    try {
-      setResendLoading(true)
-      // Sign in temporarily to resend
-      const tempAuth = firebase.auth
-      await tempAuth.signInWithEmailAndPassword(verificationEmail, password)
-      await firebase.resendVerificationEmail()
-      await tempAuth.signOut()
-      setResendSuccess(true)
-    } catch (error) {
-      console.error(error)
-      setError("Failed to resend verification email. Please try again.")
-    } finally {
-      setResendLoading(false)
     }
   }
 
@@ -189,28 +147,6 @@ const Login = () => {
           <p css={css`color: #667190; margin-top: 0.5rem;`}>
             Sign in to submit and upvote AI tools
           </p>
-
-          {resendSuccess && (
-            <SuccessMessage>
-              ✅ Verification email sent! Check your inbox.
-            </SuccessMessage>
-          )}
-
-          {needsVerification && (
-            <VerificationBox>
-              <VerificationText>
-                📧 Please verify your email before signing in.<br />
-                Check <strong>{verificationEmail}</strong> for the verification link.
-              </VerificationText>
-              <ResendButton 
-                type="button"
-                onClick={handleResendVerification}
-                disabled={resendLoading}
-              >
-                {resendLoading ? "Sending..." : "Resend Verification Email"}
-              </ResendButton>
-            </VerificationBox>
-          )}
           
           {error && <Error>{error}</Error>}
 
